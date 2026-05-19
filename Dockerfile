@@ -1,4 +1,4 @@
-FROM node:20.11.0
+FROM node:20.11-bookworm-slim
 
 LABEL maintainer="rosen-bridge team <team@rosen.tech>"
 LABEL description="Docker image for the watcher service owned by rosen-bridge organization."
@@ -13,9 +13,9 @@ WORKDIR /app/services/watcher
 # TODO: Add layer optimizations when at least one package is added to the monorepo
 # https://git.ergopool.io/ergo/rosen-bridge/watcher/-/issues/131
 COPY --chmod=700 --chown=ergo:ergo . .
-RUN npm ci
-
 ENV NODE_ENV=production
+RUN --mount=type=cache,target=/root/.npm npm ci
+
 ENV SERVICE_PORT=3000
 EXPOSE 3000
 
