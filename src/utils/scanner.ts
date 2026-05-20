@@ -1,18 +1,24 @@
+import { DefaultLogger } from '@rosen-bridge/abstract-logger';
 import { ErgoUTXOExtractor } from '@rosen-bridge/address-extractor';
-import {
-  BitcoinEsploraScanner,
-  DogeEsploraScanner,
-  BitcoinRpcScanner,
-  DogeRpcScanner,
-} from '@rosen-bridge/bitcoin-scanner';
 import {
   BitcoinEsploraObservationExtractor,
   BitcoinRpcObservationExtractor,
   DogeEsploraObservationExtractor,
   DogeRpcObservationExtractor,
 } from '@rosen-bridge/bitcoin-observation-extractor';
-import { DefaultLogger } from '@rosen-bridge/abstract-logger';
-import { ErgoObservationExtractor } from '@rosen-bridge/ergo-observation-extractor';
+import {
+  AbstractRunesProtocolNetwork,
+  BitcoinRunesEsploraObservationExtractor,
+  BitcoinRunesRpcObservationExtractor,
+  OrdiscanRunesProtocolNetwork,
+  UnisatRunesProtocolNetwork,
+} from '@rosen-bridge/bitcoin-runes-observation-extractor';
+import {
+  BitcoinEsploraScanner,
+  BitcoinRpcScanner,
+  DogeEsploraScanner,
+  DogeRpcScanner,
+} from '@rosen-bridge/bitcoin-scanner';
 import {
   CardanoBlockFrostObservationExtractor,
   CardanoKoiosObservationExtractor,
@@ -23,7 +29,10 @@ import {
   CardanoKoiosScanner,
   CardanoOgmiosScanner,
 } from '@rosen-bridge/cardano-scanner';
+import { ErgoObservationExtractor } from '@rosen-bridge/ergo-observation-extractor';
 import { ErgoScanner } from '@rosen-bridge/ergo-scanner';
+import { HandshakeRpcObservationExtractor } from '@rosen-bridge/handshake-observation-extractor';
+import { HandshakeRpcScanner } from '@rosen-bridge/handshake-scanner';
 import { ErgoNetworkType } from '@rosen-bridge/scanner-interfaces';
 import {
   CollateralExtractor,
@@ -31,43 +40,42 @@ import {
   EventTriggerExtractor,
   PermitExtractor,
 } from '@rosen-bridge/watcher-data-extractor';
-import {
-  BitcoinRunesEsploraObservationExtractor,
-  BitcoinRunesRpcObservationExtractor,
-  AbstractRunesProtocolNetwork,
-  UnisatRunesProtocolNetwork,
-  OrdiscanRunesProtocolNetwork,
-} from '@rosen-bridge/bitcoin-runes-observation-extractor';
 
 import {
   BinanceRpcObservationExtractor,
   EthereumRpcObservationExtractor,
 } from '@rosen-bridge/evm-observation-extractor';
 import { EvmRpcScanner } from '@rosen-bridge/evm-scanner';
+import { FiroRpcObservationExtractor } from '@rosen-bridge/firo-observation-extractor';
+import { FiroRpcScanner } from '@rosen-bridge/firo-scanner';
 import { dataSource } from '../../config/dataSource';
 import {
   BinanceConfig,
   BitcoinConfig,
+  BitcoinRunesConfig,
   CardanoConfig,
   Config,
-  EthereumConfig,
-  getConfig,
-  RosenConfig,
   DogeConfig,
-  BitcoinRunesConfig,
+  EthereumConfig,
+  FiroConfig,
+  getConfig,
+  HandshakeConfig,
+  RosenConfig,
 } from '../config/config';
 import * as Constants from '../config/constants';
 import { TokensConfig } from '../config/tokensConfig';
 import {
-  createCardanoKoiosNetworkConnectorManager,
-  createCardanoBlockfrostNetworkConnectorManager,
   createBitcoinEsploraNetworkConnectorManager,
   createBitcoinRpcNetworkConnectorManager,
+  createCardanoBlockfrostNetworkConnectorManager,
+  createCardanoKoiosNetworkConnectorManager,
   createDogeEsploraNetworkConnectorManager,
   createDogeRpcNetworkConnectorManager,
-  createEvmNetworkConnectorManager,
-  createErgoNodeNetworkConnectorManager,
   createErgoExplorerNetworkConnectorManager,
+  createErgoNodeNetworkConnectorManager,
+  createEvmNetworkConnectorManager,
+  createFiroRpcNetworkConnectorManager,
+  createHandshakeRpcNetworkConnectorManager,
 } from './networkConnectorManagers';
 
 const logger = DefaultLogger.getInstance().child(import.meta.url);
@@ -101,7 +109,9 @@ class CreateScanner {
     | BitcoinRpcScanner
     | DogeEsploraScanner
     | DogeRpcScanner
-    | EvmRpcScanner;
+    | EvmRpcScanner
+    | FiroRpcScanner
+    | HandshakeRpcScanner;
 
   private constructor() {
     // do nothing
@@ -123,6 +133,8 @@ class CreateScanner {
         doge: dogeConfig,
         ethereum: ethereumConfig,
         binance: binanceConfig,
+        handshake: handshakeConfig,
+        firo: firoConfig,
       } = allConfig;
 
       await CreateScanner.instance.createErgoScanner(config, rosenConfig);
@@ -170,6 +182,20 @@ class CreateScanner {
             config.observationStoreRawData
           );
           break;
+        case Constants.FIRO_CHAIN_NAME:
+          await CreateScanner.instance.createFiroScanner(
+            firoConfig,
+            rosenConfig,
+            config.observationStoreRawData
+          );
+          break;
+        case Constants.HANDSHAKE_CHAIN_NAME:
+          await CreateScanner.instance.createHandshakeScanner(
+            handshakeConfig,
+            rosenConfig,
+            config.observationStoreRawData
+          );
+          break;
       }
       if (!CreateScanner.instance.observationScanner)
         throw Error(
@@ -211,7 +237,9 @@ class CreateScanner {
     | BitcoinRpcScanner
     | DogeEsploraScanner
     | DogeRpcScanner
-    | EvmRpcScanner => {
+    | EvmRpcScanner
+    | FiroRpcScanner
+    | HandshakeRpcScanner => {
     if (!CreateScanner.instance) {
       throw new Error('Scanner is not initialized');
     }
@@ -562,6 +590,58 @@ class CreateScanner {
         );
 
         const observationExtractor = new BinanceRpcObservationExtractor(
+          rosenConfig.lockAddress,
+          dataSource,
+          TokensConfig.getInstance().getTokenMap(),
+          loggers.observationExtractorLogger,
+          observationStoreRawData
+        );
+        this.observationScanner.registerExtractor(observationExtractor);
+      }
+    }
+  };
+
+  private createFiroScanner = async (
+    firoConfig: FiroConfig,
+    rosenConfig: RosenConfig,
+    observationStoreRawData: boolean
+  ) => {
+    if (!this.observationScanner) {
+      if (firoConfig.rpc) {
+        this.observationScanner = new FiroRpcScanner({
+          dataSource,
+          initialHeight: firoConfig.initialHeight,
+          network: createFiroRpcNetworkConnectorManager(),
+          logger: loggers.observationScannerLogger,
+        });
+
+        const observationExtractor = new FiroRpcObservationExtractor(
+          rosenConfig.lockAddress,
+          dataSource,
+          TokensConfig.getInstance().getTokenMap(),
+          loggers.observationExtractorLogger,
+          observationStoreRawData
+        );
+        this.observationScanner.registerExtractor(observationExtractor);
+      }
+    }
+  };
+
+  private createHandshakeScanner = async (
+    handshakeConfig: HandshakeConfig,
+    rosenConfig: RosenConfig,
+    observationStoreRawData: boolean
+  ) => {
+    if (!this.observationScanner) {
+      if (handshakeConfig.rpc) {
+        this.observationScanner = new HandshakeRpcScanner({
+          dataSource,
+          initialHeight: handshakeConfig.initialHeight,
+          network: createHandshakeRpcNetworkConnectorManager(),
+          logger: loggers.observationScannerLogger,
+        });
+
+        const observationExtractor = new HandshakeRpcObservationExtractor(
           rosenConfig.lockAddress,
           dataSource,
           TokensConfig.getInstance().getTokenMap(),
