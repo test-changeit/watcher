@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM node:20.11-bookworm-slim
+FROM node:20.11.0-bookworm-slim
 ARG SERVICE_DIR=/app/services/watcher
 
 LABEL maintainer="rosen-bridge team <team@rosen.tech>"
