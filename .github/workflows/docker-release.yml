@@ -90,7 +90,7 @@ jobs:
         with:
           builder: ${{ steps.setup-buildx.outputs.name }}
           cache-dir: /tmp/cache-mounts
-          dockerfile: ${{ env.SERVICE_DIR }}/Dockerfile
+          dockerfile: Dockerfile
           skip-extraction: ${{ steps.buildkit-cache.outputs.cache-hit }}
 
       - name: Generate Docker Metadata
