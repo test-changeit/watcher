@@ -17,5 +17,5 @@ jobs:
         with:
           source_repo: ${GITHUB_REPOSITORY}
           source_branch: ${{github.ref_name}}
-          destination_repo: 'https://${{ secrets.DESTINATION_USER }}:${{ secrets.DESTINATION_TOKEN }}@${{ secrets.DESTINATION_SERVER }}/test/${GITHUB_REPOSITORY}.git'
+          destination_repo: 'https://${{ secrets.DESTINATION_USER }}:${{ secrets.DESTINATION_TOKEN }}@${{ secrets.DESTINATION_SERVER }}/test/watcher.git'
           destination_branch: ${{github.ref_name}}
